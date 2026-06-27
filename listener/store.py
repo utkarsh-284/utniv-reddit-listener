@@ -87,6 +87,16 @@ def start_run(sb: Client) -> str:
     return (res.data or [{}])[0].get("id")
 
 
+# Only these keys are real columns on reddit_runs. Runtime-only metrics in `stats`
+# (posts_known, fetch_failed, …) are printed/returned but must not be sent to the DB,
+# or the update fails with a missing-column error.
+_RUN_COLS = {
+    "subs_polled", "posts_fetched", "posts_new", "posts_scored", "alerts_sent",
+    "llm_calls", "llm_provider", "errors", "ok", "finished_at",
+}
+
+
 def finish_run(sb: Client, run_id: str, stats: dict) -> None:
-    stats["finished_at"] = datetime.now(timezone.utc).isoformat()
-    sb.table("reddit_runs").update(stats).eq("id", run_id).execute()
+    payload = {k: v for k, v in stats.items() if k in _RUN_COLS}
+    payload["finished_at"] = datetime.now(timezone.utc).isoformat()
+    sb.table("reddit_runs").update(payload).eq("id", run_id).execute()
