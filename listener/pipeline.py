@@ -122,8 +122,7 @@ def run(dry: bool = False) -> dict:
             # already-seen: just refresh live counts (no LLM), then move on.
             if t.reddit_id in seen:
                 stats["posts_known"] += 1
-                store.touch_thread(sb, t.reddit_id, t.upvotes, t.num_comments,
-                                   det["velocity"], 0)
+                store.touch_thread(sb, t.reddit_id, t.upvotes, t.num_comments, det["velocity"])
                 continue
 
             stats["posts_new"] += 1
@@ -202,8 +201,9 @@ def _row(t, det, llm, comp, status="new") -> dict:
         "age_hours": det["age_hours"], "velocity": det["velocity"],
         "decay_factor": det["decay_factor"], "engagement": det["engagement"],
         "phrase_hits": det["phrase_hits"], "matched_phrases": det["matched_phrases"],
-        "icp_relevance": llm.icp_relevance or None,
-        "pain_acuteness": llm.pain_acuteness or None,
+        # store the real integer (incl. 0) when LLM-scored; null only if never scored
+        "icp_relevance": llm.icp_relevance if llm.provider else None,
+        "pain_acuteness": llm.pain_acuteness if llm.provider else None,
         "is_question": llm.is_question,
         "trigger_type": llm.trigger_type,
         "suggested_action": llm.suggested_action,

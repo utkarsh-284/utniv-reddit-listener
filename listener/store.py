@@ -43,13 +43,15 @@ def insert_thread(sb: Client, row: dict) -> str | None:
 
 
 def touch_thread(sb: Client, reddit_id: str, upvotes: int, num_comments: int,
-                 velocity: float, composite_score: int) -> None:
-    """Refresh live counts for an already-seen thread (no LLM)."""
-    sb.table("reddit_threads").update({
-        "upvotes": upvotes, "num_comments": num_comments,
-        "velocity": velocity, "composite_score": composite_score,
-        "last_seen_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("reddit_id", reddit_id).execute()
+                 velocity: float) -> None:
+    """Mark an already-seen thread as seen again. Never touches the LLM scores or the
+    composite (which is set once at scoring time) — only the live counts + last_seen_at."""
+    patch = {"last_seen_at": datetime.now(timezone.utc).isoformat()}
+    if upvotes is not None:        # only meaningful in OAuth mode; None in RSS mode
+        patch["upvotes"] = upvotes
+        patch["num_comments"] = num_comments
+        patch["velocity"] = velocity
+    sb.table("reddit_threads").update(patch).eq("reddit_id", reddit_id).execute()
 
 
 def get_unalerted(sb: Client) -> list[dict]:
