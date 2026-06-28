@@ -12,6 +12,7 @@ create table if not exists reddit_subreddits (
   promo_tolerance  numeric not null default 0.2, -- 0..1
   poll_new         boolean not null default true,
   active           boolean not null default true,
+  sort_order       int not null default 100,    -- groups combined feeds: ~10-21 busy, ~30-41 niche
   created_at       timestamptz not null default now()
 );
 
@@ -105,14 +106,33 @@ alter table reddit_voc        enable row level security;
 alter table reddit_runs       enable row level security;
 alter table reddit_drafts     enable row level security;
 
--- Seed the watchlist (idempotent). Tune promo_tolerance from each sub's actual rules.
-insert into reddit_subreddits (name, role, promo_tolerance, poll_new, active) values
-  ('agency',            'primary',   0.20, true, true),
-  ('agencylife',        'informant', 0.10, true, true),
-  ('PublicRelations',   'primary',   0.40, true, true),
-  ('projectmanagement', 'primary',   0.40, true, true),
-  ('advertising',       'primary',   0.20, true, true),
-  ('digital_marketing', 'reach',     0.40, true, true),
-  ('marketing',         'reach',     0.20, true, true),
-  ('msp',               'probe',     0.60, true, true)
+-- Seed the watchlist (idempotent). sort_order groups combined feeds so high-volume subs
+-- (10-21) don't crowd out low-volume high-ICP niche subs (30-41), which get their own feed.
+insert into reddit_subreddits (name, role, promo_tolerance, sort_order, poll_new, active) values
+  -- group 1 — higher-volume / broad (share one combined feed)
+  ('marketing',          'reach',     0.20, 10, true, true),
+  ('digital_marketing',  'reach',     0.40, 11, true, true),
+  ('advertising',        'primary',   0.20, 12, true, true),
+  ('socialmedia',        'reach',     0.30, 13, true, true),
+  ('SEO',                'primary',   0.30, 14, true, true),
+  ('PPC',                'primary',   0.40, 15, true, true),
+  ('webdev',             'reach',     0.30, 16, true, true),
+  ('consulting',         'probe',     0.40, 17, true, true),
+  ('sysadmin',           'probe',     0.50, 18, true, true),
+  ('devops',             'probe',     0.50, 19, true, true),
+  ('projectmanagement',  'primary',   0.40, 20, true, true),
+  ('humanresources',     'informant', 0.50, 21, true, true),
+  -- group 2 — low-volume / high-ICP-density niche (share a separate combined feed)
+  ('agency',             'primary',   0.20, 30, true, true),
+  ('agencylife',         'informant', 0.10, 31, true, true),
+  ('PublicRelations',    'primary',   0.40, 32, true, true),
+  ('content_marketing',  'primary',   0.40, 33, true, true),
+  ('branding',           'primary',   0.40, 34, true, true),
+  ('web_design',         'primary',   0.40, 35, true, true),
+  ('bigseo',             'primary',   0.40, 36, true, true),
+  ('freelance',          'informant', 0.30, 37, true, true),
+  ('msp',                'probe',     0.60, 38, true, true),
+  ('CustomerSuccess',    'primary',   0.50, 39, true, true),
+  ('ProductManagement',  'probe',     0.40, 40, true, true),
+  ('managementconsulting','probe',    0.40, 41, true, true)
 on conflict (name) do nothing;

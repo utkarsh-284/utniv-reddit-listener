@@ -36,7 +36,7 @@ jobs:
           # --- reliability tuning for datacenter (Azure) IPs — Reddit throttles these harder,
           #     so we make FEWER requests and wait LONGER/with jitter before giving up. ---
           SOURCE_MODE: rss
-          RSS_GROUP_SIZE: "4"          # 8 subs -> 2 combined requests (low 429 surface)
+          RSS_GROUP_SIZE: "12"         # 24 subs -> 2 combined requests (busy group + niche group)
           RSS_COMBINED_LIMIT: "100"
           RSS_DELAY_SECONDS: "8"       # pause between the 2 group requests
           RSS_BACKOFF_SECONDS: "20"    # first 429/403 backoff (then 40, 80, 160, 320)

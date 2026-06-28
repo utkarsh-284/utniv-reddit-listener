@@ -14,8 +14,13 @@ from config.phrases import match_phrases
 
 def dry_run() -> dict:
     """Fetch + gate only. No Supabase, no Slack, no LLM, no spend — verifies intake + the gate."""
-    subs = ["agency", "agencylife", "PublicRelations", "advertising",
-            "marketing", "digital_marketing", "projectmanagement", "msp"]
+    subs = [  # busy group (sort 10-21)
+            "marketing", "digital_marketing", "advertising", "socialmedia", "SEO", "PPC",
+            "webdev", "consulting", "sysadmin", "devops", "projectmanagement", "humanresources",
+            # niche group (sort 30-41)
+            "agency", "agencylife", "PublicRelations", "content_marketing", "branding",
+            "web_design", "bigseo", "freelance", "msp", "CustomerSuccess",
+            "ProductManagement", "managementconsulting"]
     threads = reddit_client.fetch_all(subs)
     passed = [t for t in threads if match_phrases(f"{t.title}\n{t.body}")]
     print(f"\n[dry-run] fetched {len(threads)} posts; {len(passed)} pass the gate "
@@ -87,7 +92,9 @@ def run(dry: bool = False) -> dict:
     alert_uuids: list[str] = []
 
     try:
-        subs = store.active_subreddits(sb)
+        # sort by sort_order so combined-feed groups stay busy-vs-niche (robust if column absent)
+        subs = sorted(store.active_subreddits(sb),
+                      key=lambda s: (s.get("sort_order") or 100, s["name"]))
         promo_by_sub = {s["name"]: float(s.get("promo_tolerance", 0.2)) for s in subs}
         names = [s["name"] for s in subs if s.get("poll_new", True)]
         stats["subs_polled"] = len(names)

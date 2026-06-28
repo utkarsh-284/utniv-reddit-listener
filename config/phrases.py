@@ -38,6 +38,16 @@ TERMS: list[str] = [
     "client left", "client ghost", "they don't get us", "inherited",
     # notetaker truth
     "notetaker", "fireflies", "otter", "transcript", "transcripts", "meeting notes",
+    # ops / IT / sysadmin / devops knowledge loss
+    "runbook", "runbooks", "knowledge silo", "siloed", "silos", "subject matter expert",
+    "the only person who", "documentation debt", "cross-train", "cross training",
+    # succession / continuity / people
+    "succession", "key person", "key man", "backfill", "took the knowledge",
+    "out the door", "walked out the door", "when they leave", "when she left",
+    "when he left", "after they left",
+    # client / account continuity
+    "account handoff", "account transition", "account handover", "rep left", "rep quit",
+    "relationship walked",
 ]
 
 # secondary Reddit search queries (used only if SEARCH is ever enabled)
