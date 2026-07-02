@@ -59,6 +59,39 @@ def get_unalerted(sb: Client) -> list[dict]:
     return res.data or []
 
 
+def _since_iso(days: int) -> str:
+    from datetime import timedelta
+    return (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+
+def threads_since(sb: Client, days: int = 7) -> list[dict]:
+    """LLM-scored threads first seen in the last `days`, best score first."""
+    res = (sb.table("reddit_threads").select("*")
+           .eq("llm_scored", True).gte("first_seen_at", _since_iso(days))
+           .order("composite_score", desc=True).execute())
+    return res.data or []
+
+
+def voc_since(sb: Client, days: int = 7) -> list[dict]:
+    res = (sb.table("reddit_voc").select("*")
+           .gte("captured_at", _since_iso(days)).execute())
+    return res.data or []
+
+
+def runs_since(sb: Client, days: int = 7) -> list[dict]:
+    res = (sb.table("reddit_runs").select("posts_new,posts_scored,alerts_sent")
+           .gte("started_at", _since_iso(days)).execute())
+    return res.data or []
+
+
+def save_content(sb: Client, kind: str, subreddit: str, title: str,
+                 body: str, grounded_on: str) -> None:
+    sb.table("reddit_content").insert({
+        "kind": kind, "subreddit": subreddit, "title": title,
+        "body": body, "grounded_on": grounded_on,
+    }).execute()
+
+
 def mark_alerted(sb: Client, thread_uuids: list[str]) -> None:
     if not thread_uuids:
         return

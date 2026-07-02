@@ -76,6 +76,11 @@ def post_error(message: str) -> None:
     _send({"text": f"⚠️ Reddit listener run issue: {message}"})
 
 
+def post_blocks(blocks: list[dict]) -> bool:
+    """Post an arbitrary Block Kit message (used by the weekly digest)."""
+    return _send({"blocks": blocks})
+
+
 def _send(payload: dict) -> bool:
     if not settings.slack_webhook_url:
         print("[slack] no webhook configured; payload:\n", json.dumps(payload)[:800])

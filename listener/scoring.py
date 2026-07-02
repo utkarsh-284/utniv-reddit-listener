@@ -146,6 +146,24 @@ _URL_RE = re.compile(r"https?://\S+|\bwww\.\S+|\butniv\.com\S*", re.IGNORECASE)
 _PITCH_RE = re.compile(r"\b(utniv|scorecard|book a call|dm me|check out|reach out to me)\b", re.IGNORECASE)
 
 
+def complete(system: str, user: str, max_tokens: int = 600, temperature: float = 0.6) -> str | None:
+    """Generic OpenAI->NIM completion (used by the weekly digest). Returns text or None."""
+    for client, model, name in _providers():
+        try:
+            resp = client.chat.completions.create(
+                model=model, temperature=temperature, max_tokens=max_tokens,
+                messages=[{"role": "system", "content": system},
+                          {"role": "user", "content": user}],
+            )
+            text = (resp.choices[0].message.content or "").strip()
+            if text:
+                return text
+        except Exception as e:
+            print(f"[complete] {name} failed: {e}")
+            continue
+    return None
+
+
 def draft_reply(t: Thread, llm: LLMResult) -> str | None:
     """Draft a Reddit comment in Utkarsh's voice (Bearing-Quiet, first-person, no pitch).
     Gated: returned for Slack review, never auto-posted. Strips any link/pitch that slips in."""

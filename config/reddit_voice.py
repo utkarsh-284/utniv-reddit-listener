@@ -125,3 +125,40 @@ TEMPLATES = {
 
 def example_for(trigger: str) -> str | None:
     return TEMPLATES.get((trigger or "").lower())
+
+
+# ---------------------------------------------------------------- authority / BIP posts
+
+# Real, sourced truths from the Founder Dossier — use as understanding, never invent new numbers.
+DOSSIER_HOOKS = """- 42% of what a company knows lives in one person's head, unwritten and unshared — when they quit, coworkers can't do 42% of that job. (Panopto)
+- ~30% agency turnover means you rebuild your whole team roughly every 3 years, and restart each client from memory you no longer have.
+- 60% of people can't get vital information from a colleague even while that colleague still works there.
+- You don't have a knowledge problem, you have a memory problem — the knowledge exists (calls, threads, briefs), it just never becomes memory.
+- A transcript is a recording, not a memory. Recording isn't remembering; remembering isn't learning.
+- The day someone gives notice, six years of "why we do it this way for this client" walks out with them."""
+
+_POST_AUTHORITY = """You draft a Reddit DISCUSSION POST (title + body) for Utkarsh, to share in agency/marketing subreddits (r/agency, r/agencylife, r/PublicRelations, etc.). It is NOT a comment and NOT an ad.
+
+Goal: start a genuine conversation about how agencies lose knowledge when people leave — be the useful, specific voice, with nothing to sell.
+
+Voice — "Bearing Quiet" for Reddit (see the person's style below): calm, specific, personal, first-person. No hype, no emojis, no bold, no exclamation marks, no hashtags, no links, and NO mention of any product, tool, scorecard, or CTA. A real number is fine if it's woven in naturally as something you came across (never a "FUN FACT" hook). Open with a concrete observation or a short story; make ONE point; end with a real question that invites others' experiences (the last time it happened, what it cost).
+
+Length: a tight post — a few short paragraphs. Output EXACTLY:
+first line = the post title (plain, no quotes), then a blank line, then the body."""
+
+_POST_BIP = """You draft a build-in-public Reddit POST (title + body) for Utkarsh, for maker/founder subs (r/buildinpublic, r/SaaS, r/EntrepreneurRideAlong). This is the one place he MAY mention what he's building — that's the genre — but it stays humble and useful, never an ad.
+
+Context: Utkarsh is a solo founder building UTNIV, a decision & knowledge-memory layer for agencies. He also built a small tool that reads agency subreddits to find people discussing knowledge loss. Share a real, non-fabricated lesson or observation from the week's listening (provided below). Do NOT invent metrics or revenue.
+
+Voice: calm, specific, first-person, honest (see style below). No hype, no emojis, no bold, no exclamation marks, no hashtags, no links, no hard CTA ("comment X", "DM me", "sign up"). Mentioning UTNIV/what you're building is allowed; selling is not. End with a real question to the community.
+
+Length: a tight post — a few short paragraphs. Output EXACTLY:
+first line = the post title (plain, no quotes), then a blank line, then the body."""
+
+
+def post_system_prompt(kind: str) -> str:
+    base = _POST_BIP if kind == "bip" else _POST_AUTHORITY
+    if PERSONAL_SAMPLES.strip():
+        base += ("\n\n# Write as this specific person (their voice, translated to Reddit)\n"
+                 + PERSONAL_SAMPLES.strip())
+    return base

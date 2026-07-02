@@ -17,6 +17,10 @@ if __name__ == "__main__":
         from listener.pipeline import realert
         stats = realert()
         sys.exit(0 if stats.get("ok") else 1)
+    if "--digest" in sys.argv:
+        from listener.digest import weekly_digest
+        stats = weekly_digest(dry="--dry-run" in sys.argv)
+        sys.exit(0 if stats.get("ok") else 1)
     dry = "--dry-run" in sys.argv
     stats = run(dry=dry)
     sys.exit(0 if stats.get("ok") else 1)
