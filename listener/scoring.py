@@ -11,6 +11,7 @@ deterministic-only score and is stored — the run never crashes and no data is 
 
 from __future__ import annotations
 import json
+import re
 import time
 from dataclasses import dataclass
 
@@ -140,6 +141,40 @@ def llm_score(t: Thread) -> LLMResult:
 
 
 # ---------------------------------------------------------------- composite
+
+_URL_RE = re.compile(r"https?://\S+|\bwww\.\S+|\butniv\.com\S*", re.IGNORECASE)
+_PITCH_RE = re.compile(r"\b(utniv|scorecard|book a call|dm me|check out|reach out to me)\b", re.IGNORECASE)
+
+
+def draft_reply(t: Thread, llm: LLMResult) -> str | None:
+    """Draft a Reddit comment in Utkarsh's voice (Bearing-Quiet, first-person, no pitch).
+    Gated: returned for Slack review, never auto-posted. Strips any link/pitch that slips in."""
+    from config.reddit_voice import system_prompt
+    user = json.dumps({
+        "subreddit": t.subreddit, "title": t.title, "body": t.body[:4000],
+        "why_it_matters": llm.one_line_why, "trigger": llm.trigger_type,
+    })
+    for client, model, name in _providers():
+        try:
+            resp = client.chat.completions.create(
+                model=model, temperature=0.6, max_tokens=320,
+                messages=[{"role": "system", "content": system_prompt()},
+                          {"role": "user", "content": user}],
+            )
+            text = (resp.choices[0].message.content or "").strip().strip('"').strip()
+            if not text:
+                continue
+            # guardrails: no links / product mentions may ever ship in a draft
+            text = _URL_RE.sub("", text)
+            if _PITCH_RE.search(text):
+                # drop any line that references the product/CTA
+                text = "\n".join(ln for ln in text.splitlines() if not _PITCH_RE.search(ln)).strip()
+            return text or None
+        except Exception as e:
+            print(f"[draft] {name} failed: {e}")
+            continue
+    return None
+
 
 def composite(det: dict, llm: LLMResult) -> int:
     s = settings

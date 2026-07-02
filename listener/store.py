@@ -66,6 +66,11 @@ def mark_alerted(sb: Client, thread_uuids: list[str]) -> None:
         .in_("id", thread_uuids).execute()
 
 
+def save_draft(sb: Client, thread_uuid: str, body: str) -> None:
+    """Store a drafted reply (gated — posted by hand). One draft per thread."""
+    sb.table("reddit_drafts").insert({"thread_id": thread_uuid, "body": body}).execute()
+
+
 def save_voc(sb: Client, thread_uuid: str, quote: str, theme: str,
              subreddit: str, url: str) -> None:
     sb.table("reddit_voc").insert({

@@ -152,12 +152,20 @@ def run(dry: bool = False) -> dict:
             worth_reply = (llm.suggested_action == "reply"
                            and llm.icp_relevance >= settings.reply_icp_floor)
             if comp >= settings.alert_threshold or hot or worth_reply:
+                # for "reply"-worthy threads, draft a comment in Utkarsh's voice (gated: it
+                # lands in Slack for him to review + post by hand — never auto-posted).
+                draft = None
+                if llm.suggested_action == "reply":
+                    draft = scoring.draft_reply(t, llm)
+                    if draft and thread_uuid:
+                        store.save_draft(sb, thread_uuid, draft)
+                        stats["drafts_made"] = stats.get("drafts_made", 0) + 1
                 alert_uuids.append(thread_uuid)
                 alert_items.append({
                     "score": comp, "subreddit": t.subreddit, "age_hours": det["age_hours"],
                     "title": t.title, "url": t.url,
                     "why": llm.one_line_why, "trigger": llm.trigger_type,
-                    "action": llm.suggested_action,
+                    "action": llm.suggested_action, "draft": draft,
                     "breakdown": {
                         "icp": llm.icp_relevance, "pain": llm.pain_acuteness,
                         "decay": det["decay_factor"], "velocity": det["velocity"],

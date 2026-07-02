@@ -33,7 +33,7 @@ def _card_block(item: dict) -> list[dict]:
     if b.get("velocity") is not None:  # only present in OAuth mode
         breakdown += f" · Velocity {b['velocity']:.1f}/hr"
     meta = f"trigger: {item.get('trigger','none')} · suggested: {item.get('action','-')}"
-    return [
+    blocks = [
         {"type": "divider"},
         {"type": "section",
          "text": {"type": "mrkdwn", "text": f"{header}\n*<{item['url']}|{title}>*"}},
@@ -45,6 +45,14 @@ def _card_block(item: dict) -> list[dict]:
             {"type": "mrkdwn", "text": meta},
         ]},
     ]
+    draft = item.get("draft")
+    if draft:
+        # code block = clean copy-paste; it's a DRAFT to review + post by hand
+        blocks.append({"type": "section", "text": {
+            "type": "mrkdwn",
+            "text": f"✍️ *Draft reply* — review, edit, post by hand:\n```{draft[:2800]}```",
+        }})
+    return blocks
 
 
 def post_alerts(items: list[dict], scanned: int) -> bool:
