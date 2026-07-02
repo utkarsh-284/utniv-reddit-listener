@@ -149,11 +149,17 @@ _PITCH_RE = re.compile(r"\b(utniv|scorecard|book a call|dm me|check out|reach ou
 def draft_reply(t: Thread, llm: LLMResult) -> str | None:
     """Draft a Reddit comment in Utkarsh's voice (Bearing-Quiet, first-person, no pitch).
     Gated: returned for Slack review, never auto-posted. Strips any link/pitch that slips in."""
-    from config.reddit_voice import system_prompt
+    from config.reddit_voice import system_prompt, example_for
     user = json.dumps({
         "subreddit": t.subreddit, "title": t.title, "body": t.body[:4000],
         "why_it_matters": llm.one_line_why, "trigger": llm.trigger_type,
     })
+    # a scenario exemplar matched to the trigger — shape to adapt, never to copy
+    example = example_for(llm.trigger_type)
+    if example:
+        user += ("\n\nAn example of the kind of reply that works for a situation like this. Match "
+                 "its shape, specificity, and usefulness — but write something fresh for THIS "
+                 "thread in your own words. Do NOT copy it:\n" + example)
     for client, model, name in _providers():
         try:
             resp = client.chat.completions.create(

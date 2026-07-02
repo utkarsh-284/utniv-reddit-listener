@@ -77,3 +77,51 @@ def system_prompt() -> str:
         p += ("\n\n# Write as this specific person (their voice, translated to Reddit)\n"
               + PERSONAL_SAMPLES.strip())
     return p
+
+
+# Scenario exemplars (from the engagement playbook §4), keyed by the LLM's trigger_type.
+# Shown to the drafter as the SHAPE of a reply that works for that situation — to ADAPT to
+# the specific thread, never to copy. Keeps drafts consistent without making them identical.
+TEMPLATES = {
+    "churn": (
+        "That's brutal — half your MRR in one text. When you're past the gut-punch, one thing "
+        "worth tracing: how much of why this client worked lived in one or two people's heads vs. "
+        "written down anywhere? The quiet churns I keep seeing trace back to a senior person "
+        "leaving 6-18 months earlier and the client's context walking out with them — nobody "
+        "connects it until the relationship's already cooled. Did anyone who really 'got' this "
+        "client leave in the last year or two?"
+    ),
+    "departure": (
+        "The rough part isn't usually the role you're backfilling — it's the six years of 'why we "
+        "do it this way for this client' that leaves with them and was never written down. When "
+        "someone gives notice, how much of what they know actually gets captured before their last "
+        "day, vs. walking out the door with them?"
+    ),
+    "onboarding": (
+        "The thing that fixes ramp time isn't more docs — it's capturing decisions and their why, "
+        "which nobody ever writes down. New people don't need the wiki, they need 'here's what we "
+        "decided for this client and why, and how it turned out.' How are you handling that today — "
+        "is it all shadowing, or is any of the 'why' written somewhere a new hire can actually find?"
+    ),
+    "documentation": (
+        "Wikis die for one reason: they ask people to write down what they never write down. The "
+        "stuff that actually survives turnover is what gets captured from what you already produce — "
+        "calls, threads, briefs — not a doc someone has to maintain. What have you tried, and where "
+        "did it die?"
+    ),
+    "retrieval": (
+        "The 're-answering the same question for the tenth time' tax is usually not a search "
+        "problem — it's that the answer was never captured as a decision anywhere, so people just "
+        "ask the one person who remembers. What's the thing your team keeps asking the same person "
+        "over and over?"
+    ),
+    "notetaker": (
+        "Everyone's got a notetaker now and the transcripts just pile up unread — recording a call "
+        "isn't the same as remembering what got decided on it. Do you actually go back to the "
+        "transcripts, or do they mostly just sit there?"
+    ),
+}
+
+
+def example_for(trigger: str) -> str | None:
+    return TEMPLATES.get((trigger or "").lower())
