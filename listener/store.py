@@ -92,6 +92,17 @@ def save_content(sb: Client, kind: str, subreddit: str, title: str,
     }).execute()
 
 
+def drafts_for(sb: Client, thread_uuids: list[str]) -> dict:
+    """Map thread_id -> latest draft body, for the given threads (used by --realert)."""
+    out: dict = {}
+    for i in range(0, len(thread_uuids), 100):
+        chunk = thread_uuids[i:i + 100]
+        res = sb.table("reddit_drafts").select("thread_id,body").in_("thread_id", chunk).execute()
+        for r in (res.data or []):
+            out[r["thread_id"]] = r.get("body")
+    return out
+
+
 def mark_alerted(sb: Client, thread_uuids: list[str]) -> None:
     if not thread_uuids:
         return

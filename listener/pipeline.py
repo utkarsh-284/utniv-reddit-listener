@@ -47,6 +47,7 @@ def realert() -> dict:
         return {"ok": False}
     sb = store.client()
     rows = store.get_unalerted(sb)
+    drafts = store.drafts_for(sb, [r["id"] for r in rows])
     items, uuids = [], []
     for r in rows:
         comp = r.get("composite_score") or 0
@@ -61,7 +62,7 @@ def realert() -> dict:
             "age_hours": float(r.get("age_hours") or 0),
             "title": r["title"], "url": r["url"],
             "why": r.get("one_line_why") or "", "trigger": r.get("trigger_type") or "none",
-            "action": action or "-",
+            "action": action or "-", "draft": drafts.get(r["id"]),
             "breakdown": {"icp": icp, "pain": pain,
                           "decay": float(r.get("decay_factor") or 0),
                           "velocity": r.get("velocity"), "promo": 0.2},
