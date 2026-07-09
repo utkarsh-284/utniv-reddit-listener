@@ -88,15 +88,19 @@ class LLMResult:
 
 
 def _providers() -> list[tuple[object, str, str]]:
-    """Ordered list of (client, model, name): OpenAI first (user credits), NIM fallback."""
+    """Ordered (client, model, name) list. max_retries=0 + a 30s timeout so a dead/over-quota
+    provider fails INSTANTLY and we fall through — never a multi-minute retry storm (which was
+    blowing the CI timeout when OpenAI hit insufficient_quota). Order by LLM_PRIMARY."""
     from openai import OpenAI  # lazy import: keeps the deterministic core dependency-free
-    out = []
+    openai_p = nim_p = None
     if settings.openai_api_key:
-        out.append((OpenAI(api_key=settings.openai_api_key), settings.openai_model, "openai"))
+        openai_p = (OpenAI(api_key=settings.openai_api_key, max_retries=0, timeout=20.0),
+                    settings.openai_model, "openai")
     if settings.nim_api_key:
-        out.append((OpenAI(api_key=settings.nim_api_key, base_url=settings.nim_base_url),
-                    settings.nim_model, "nim"))
-    return out
+        nim_p = (OpenAI(api_key=settings.nim_api_key, base_url=settings.nim_base_url,
+                        max_retries=0, timeout=20.0), settings.nim_model, "nim")
+    order = [nim_p, openai_p] if settings.llm_primary == "nim" else [openai_p, nim_p]
+    return [p for p in order if p]
 
 
 def _parse(raw: str) -> dict:

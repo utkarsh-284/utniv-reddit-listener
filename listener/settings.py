@@ -55,18 +55,25 @@ class Settings:
     supabase_url: str = os.environ.get("SUPABASE_URL", "")
     supabase_service_key: str = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
-    # --- LLM scoring: OpenAI primary (user credits), NVIDIA NIM fallback ---
+    # --- LLM scoring. LLM_PRIMARY picks which provider is tried first. Default 'nim' (free +
+    #     funded); switch to 'openai' once OpenAI billing is topped up. ---
+    llm_primary: str = os.environ.get("LLM_PRIMARY", "nim").lower()
     openai_api_key: str = os.environ.get("OPENAI_API_KEY", "")
     openai_model: str = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
     nim_api_key: str = os.environ.get("NIM_API_KEY", "")
     nim_base_url: str = os.environ.get("NIM_BASE_URL", "https://integrate.api.nvidia.com/v1")
-    nim_model: str = os.environ.get("NIM_MODEL", "meta/llama-3.3-70b-instruct")
+    # fast model — scoring is a simple classification task; 8B keeps per-call latency low so a
+    # run of many posts stays well under the CI timeout. (70B was slow + queue-prone on free tier.)
+    nim_model: str = os.environ.get("NIM_MODEL", "meta/llama-3.1-8b-instruct")
 
     # --- Slack ---
     slack_webhook_url: str = os.environ.get("SLACK_WEBHOOK_URL", "")
 
     # --- tunables ---
     fetch_limit: int = _i("FETCH_LIMIT", 50)          # posts per sub per /new pull
+    # hard cap on total LLM-scoring time per run (safety net so a slow provider can't blow the
+    # CI job timeout). Past this, stop scoring new posts this run; they're picked up next run.
+    score_deadline_seconds: float = _f("SCORE_DEADLINE_SECONDS", 480.0)
     alert_threshold: int = _i("ALERT_THRESHOLD", 60)  # composite >= this -> Slack
     hot_pain_floor: int = _i("HOT_PAIN_FLOOR", 80)    # pain >= this alerts even under threshold
     reply_icp_floor: int = _i("REPLY_ICP_FLOOR", 40)  # LLM said "reply" + icp >= this -> always alert

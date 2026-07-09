@@ -47,17 +47,19 @@ jobs:
           MAX_AGE_HOURS: "48"          # wider window so a delayed/retried run still catches up
 
           # --- scoring + alerting ---
+          LLM_PRIMARY: nim             # NIM first (free + funded); OpenAI is out of quota
+          NIM_BASE_URL: https://integrate.api.nvidia.com/v1
+          NIM_MODEL: meta/llama-3.1-8b-instruct   # fast model -> low per-call latency
+          SCORE_DEADLINE_SECONDS: "480"  # hard cap on total scoring time (timeout safety net)
           ALERT_THRESHOLD: "60"
           REPLY_ICP_FLOOR: "40"
 
           # --- secrets (set these in repo Settings -> Secrets and variables -> Actions) ---
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}      # optional; defaults to gpt-4o-mini
-          NIM_API_KEY: ${{ secrets.NIM_API_KEY }}        # fallback provider
-          NIM_BASE_URL: ${{ secrets.NIM_BASE_URL }}
-          NIM_MODEL: ${{ secrets.NIM_MODEL }}
+          NIM_API_KEY: ${{ secrets.NIM_API_KEY }}        # primary provider
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}  # fallback (fast-fails while out of quota)
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           # REDDIT_* not needed in rss mode; add only if you switch SOURCE_MODE=oauth.
         run: python run.py

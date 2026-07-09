@@ -5,6 +5,7 @@ The whole run is wrapped so one failure can't lose data or block the next cron t
 """
 
 from __future__ import annotations
+import time
 import traceback
 
 from .settings import settings
@@ -114,6 +115,7 @@ def run(dry: bool = False) -> dict:
             return stats
 
         seen = store.known_ids(sb, [t.reddit_id for t in threads])
+        score_deadline = time.monotonic() + settings.score_deadline_seconds
 
         for t in threads:
             det = scoring.deterministic(t)
@@ -131,6 +133,11 @@ def run(dry: bool = False) -> dict:
             # gate later these get re-evaluated (re-checking the gate is free; no LLM).
             if det["phrase_hits"] == 0:
                 continue
+
+            # safety net: stop LLM-scoring if we're out of time budget (rest picked up next run)
+            if time.monotonic() > score_deadline:
+                print("[pipeline] score deadline reached; stopping scoring for this run")
+                break
 
             llm = scoring.llm_score(t)
             stats["posts_scored"] += 1
