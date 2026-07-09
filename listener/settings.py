@@ -35,9 +35,12 @@ class Settings:
     rss_group_size: int = _i("RSS_GROUP_SIZE", 12)            # subs per combined request (24 subs -> 2 requests)
     rss_combined_limit: int = _i("RSS_COMBINED_LIMIT", 100)    # posts per combined feed (max 100)
     rss_delay_seconds: float = _f("RSS_DELAY_SECONDS", 5.0)    # pause between the (few) groups
-    rss_backoff_seconds: float = _f("RSS_BACKOFF_SECONDS", 15.0)  # initial 429/403 backoff
+    rss_backoff_seconds: float = _f("RSS_BACKOFF_SECONDS", 8.0)   # initial 429/403 backoff
     rss_jitter_seconds: float = _f("RSS_JITTER_SECONDS", 3.0)  # random jitter added to every wait
     rss_max_retries: int = _i("RSS_MAX_RETRIES", 3)
+    # HARD cap on total fetch time so a fully-throttled IP fails fast + clean, never hangs past
+    # the CI job timeout. Past this, stop retrying and use whatever we got (fail-open).
+    rss_deadline_seconds: float = _f("RSS_DEADLINE_SECONDS", 240.0)
 
     # --- Reddit OAuth (only used when SOURCE_MODE=oauth) ---
     reddit_client_id: str = os.environ.get("REDDIT_CLIENT_ID", "")

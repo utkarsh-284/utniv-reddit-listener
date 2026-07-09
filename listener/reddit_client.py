@@ -80,17 +80,21 @@ def _id_from_link(link: str) -> str:
     return f"t3_{abs(hash(link))}"
 
 
-def _fetch_feed(group: list[str], limit: int) -> str | None:
+def _fetch_feed(group: list[str], limit: int, deadline: float) -> str | None:
     """One combined request for several subs: r/a+b+c/new/.rss — far fewer requests = no 429s.
-    Each entry still carries its own subreddit (the <category term=...>)."""
+    Each entry still carries its own subreddit (the <category term=...>). Never waits past the
+    shared `deadline` (monotonic seconds) so the run can't hang past the CI job timeout."""
     label = "+".join(group)
     url = f"https://www.reddit.com/r/{label}/new/.rss?limit={limit}"
     delay = settings.rss_backoff_seconds
     jitter = settings.rss_jitter_seconds
     for attempt in range(settings.rss_max_retries + 1):
+        if time.monotonic() >= deadline:
+            print("[rss] fetch deadline reached; giving up on this group")
+            return None
         try:
             req = urllib.request.Request(url, headers={"User-Agent": _UA})
-            with urllib.request.urlopen(req, timeout=40) as r:
+            with urllib.request.urlopen(req, timeout=30) as r:
                 if r.status == 200:
                     return r.read().decode("utf-8", "replace")
         except urllib.error.HTTPError as e:
@@ -98,6 +102,9 @@ def _fetch_feed(group: list[str], limit: int) -> str | None:
             if e.code in (429, 403) and attempt < settings.rss_max_retries:
                 ra = e.headers.get("Retry-After") if e.headers else None
                 wait = (float(ra) if (ra and ra.isdigit()) else delay) + random.uniform(0, jitter)
+                if time.monotonic() + wait >= deadline:  # not enough budget to retry
+                    print(f"[rss] {e.code}, no time left before deadline; giving up")
+                    return None
                 print(f"[rss] {e.code} on group (attempt {attempt+1}), waiting {wait:.1f}s")
                 time.sleep(wait)
                 delay *= 2
@@ -105,8 +112,8 @@ def _fetch_feed(group: list[str], limit: int) -> str | None:
             print(f"[rss] group HTTP {e.code}: {label}")
             return None
         except Exception as e:
-            if attempt < settings.rss_max_retries:
-                wait = delay + random.uniform(0, jitter)
+            wait = delay + random.uniform(0, jitter)
+            if attempt < settings.rss_max_retries and time.monotonic() + wait < deadline:
                 print(f"[rss] transient error ({e}); retry in {wait:.1f}s")
                 time.sleep(wait)
                 delay *= 2
@@ -152,12 +159,17 @@ def fetch_rss(subreddits: list[str], limit: int, max_age_hours: float) -> list[T
     """Fetch in small groups (combined feeds) instead of one-request-per-sub. With ~8 subs
     and a group size of 4, that's 2 requests total — no rate-limiting, full coverage."""
     cutoff = time.time() - max_age_hours * 3600
+    deadline = time.monotonic() + settings.rss_deadline_seconds
     out: list[Thread] = []
     groups = _chunk(subreddits, max(1, settings.rss_group_size))
     for i, group in enumerate(groups):
-        if i:  # jittered pause between the (few) group requests
-            time.sleep(settings.rss_delay_seconds + random.uniform(0, settings.rss_jitter_seconds))
-        xml_text = _fetch_feed(group, settings.rss_combined_limit)
+        if time.monotonic() >= deadline:
+            print("[rss] deadline reached; returning what we have so far")
+            break
+        if i:  # jittered pause between the (few) group requests, bounded by the deadline
+            pause = settings.rss_delay_seconds + random.uniform(0, settings.rss_jitter_seconds)
+            time.sleep(max(0.0, min(pause, deadline - time.monotonic())))
+        xml_text = _fetch_feed(group, settings.rss_combined_limit, deadline)
         if not xml_text:
             continue
         for t in _parse_rss(xml_text):
