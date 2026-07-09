@@ -56,20 +56,32 @@ def _card_block(item: dict) -> list[dict]:
 
 
 def post_alerts(items: list[dict], scanned: int) -> bool:
-    """items already filtered to >= threshold and sorted desc by score. Returns sent?"""
+    """items already filtered to >= threshold and sorted desc by score. Sends in batches so we
+    never exceed Slack's 50-blocks-per-message limit (each card is ~5 blocks). Returns sent?"""
     if not items:
         return False
-    blocks = [{
-        "type": "header",
-        "text": {"type": "plain_text",
-                 "text": f"🔎 Reddit signals — {len(items)} thread(s) worth your time"},
-    }, {
-        "type": "context",
-        "elements": [{"type": "mrkdwn", "text": f"{scanned} new posts scanned this run"}],
-    }]
-    for it in items[:15]:  # cap card size
-        blocks += _card_block(it)
-    return _send({"blocks": blocks})
+    batch = 5                       # 5 cards ~= 25 blocks + header, safely under Slack's 50
+    ok_any = False
+    total_batches = (len(items) + batch - 1) // batch
+    for bi in range(0, len(items), batch):
+        chunk = items[bi:bi + batch]
+        n = bi // batch + 1
+        if bi == 0:
+            blocks = [
+                {"type": "header", "text": {"type": "plain_text",
+                    "text": f"🔎 Reddit signals — {len(items)} thread(s) worth your time"}},
+                {"type": "context", "elements": [{"type": "mrkdwn",
+                    "text": f"{scanned} new posts scanned this run"
+                            + (f" · part 1/{total_batches}" if total_batches > 1 else "")}]},
+            ]
+        else:
+            blocks = [{"type": "context", "elements": [{"type": "mrkdwn",
+                       "text": f"🔎 Reddit signals · part {n}/{total_batches}"}]}]
+        for it in chunk:
+            blocks += _card_block(it)
+        if _send({"blocks": blocks}):
+            ok_any = True
+    return ok_any
 
 
 def post_error(message: str) -> None:
