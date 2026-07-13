@@ -55,9 +55,9 @@ class Settings:
     supabase_url: str = os.environ.get("SUPABASE_URL", "")
     supabase_service_key: str = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
-    # --- LLM scoring. LLM_PRIMARY picks which provider is tried first. Default 'nim' (free +
-    #     funded); switch to 'openai' once OpenAI billing is topped up. ---
-    llm_primary: str = os.environ.get("LLM_PRIMARY", "nim").lower()
+    # --- LLM scoring. LLM_PRIMARY picks which provider is tried first. OpenAI (gpt-4o-mini)
+    #     scores ICP relevance accurately; NIM's small models over-score. NIM is the fallback. ---
+    llm_primary: str = os.environ.get("LLM_PRIMARY", "openai").lower()
     openai_api_key: str = os.environ.get("OPENAI_API_KEY", "")
     openai_model: str = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
     nim_api_key: str = os.environ.get("NIM_API_KEY", "")

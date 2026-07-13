@@ -29,7 +29,7 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Run weekly digest
         env:
-          LLM_PRIMARY: nim
+          LLM_PRIMARY: openai
           NIM_BASE_URL: https://integrate.api.nvidia.com/v1
           NIM_MODEL: meta/llama-3.1-8b-instruct
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

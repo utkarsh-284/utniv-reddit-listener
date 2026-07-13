@@ -34,7 +34,6 @@ def dry_run() -> dict:
 
 def _alert_predicate(comp: int, pain: int, icp: int, action: str) -> bool:
     return (comp >= settings.alert_threshold
-            or pain >= settings.hot_pain_floor
             or (action == "reply" and icp >= settings.reply_icp_floor))
 
 
@@ -154,12 +153,12 @@ def run(dry: bool = False) -> dict:
                 store.save_voc(sb, thread_uuid, llm.voc_quote, llm.trigger_type,
                               t.subreddit, t.url)
 
-            # decide alert: composite over threshold, OR acute pain, OR the LLM itself said
-            # "reply" (its direct worth-engaging verdict) with a light ICP-relevance guard.
-            hot = llm.pain_acuteness >= settings.hot_pain_floor
+            # decide alert: composite over threshold, OR the LLM said "reply" AND the thread is
+            # actually in-ICP. (No pure-pain path — high pain in an off-ICP thread is just noise;
+            # a genuinely relevant high-pain thread already clears the composite via its ICP score.)
             worth_reply = (llm.suggested_action == "reply"
                            and llm.icp_relevance >= settings.reply_icp_floor)
-            if comp >= settings.alert_threshold or hot or worth_reply:
+            if comp >= settings.alert_threshold or worth_reply:
                 # for "reply"-worthy threads, draft a comment in Utkarsh's voice (gated: it
                 # lands in Slack for him to review + post by hand — never auto-posted).
                 draft = None
