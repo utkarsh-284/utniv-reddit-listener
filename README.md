@@ -104,6 +104,16 @@ Check the Slack card and the `reddit_threads` / `reddit_runs` rows in Supabase. 
 
 ---
 
+## Which model does what
+Two LLM jobs, two models — each matched to its task:
+- **Scoring / triage** (`OPENAI_MODEL`, default `gpt-4o-mini`) — runs on every phrase-gated
+  post. Cheap, fast, and proven accurate for this classification. NIM is the fallback.
+- **Drafting / voice** (`DRAFT_MODEL`, default `gpt-5.4-mini`) — replies, follow-up digs, DM
+  openers, per-run post ideas, and the weekly authority/BIP posts. Few calls per run, so a
+  stronger model is worth it (~$1–2/mo). `gpt-5.x` is a reasoning model: the client auto-swaps
+  `max_tokens`→`max_completion_tokens` and drops `temperature` (both would 400 otherwise).
+  Optional `DRAFT_REASONING_EFFORT` (`low`/`medium`/`high`/`xhigh`; empty = fast default).
+
 ## How scoring works
 - **Deterministic (free):** velocity (upvotes/hr), decay/freshness (favors <12h), engagement
   (comments/upvotes), per-sub promo tolerance, phrase hits.

@@ -59,7 +59,15 @@ class Settings:
     #     scores ICP relevance accurately; NIM's small models over-score. NIM is the fallback. ---
     llm_primary: str = os.environ.get("LLM_PRIMARY", "openai").lower()
     openai_api_key: str = os.environ.get("OPENAI_API_KEY", "")
+    # SCORING model — cheap, fast, accurate triage classifier. gpt-4o-mini is proven here.
     openai_model: str = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+    # DRAFTING model — voice work (replies, DM openers, post ideas, weekly posts). A stronger
+    # model earns its keep here (few calls/run). gpt-5.4-mini is a reasoning model, so scoring.py
+    # auto-swaps max_tokens->max_completion_tokens and drops temperature for it.
+    draft_model: str = os.environ.get("DRAFT_MODEL", "gpt-5.4-mini")
+    # Optional reasoning depth for the draft model: ""(default/none/fast), low, medium, high,
+    # xhigh. Left empty = model default. Only sent when non-empty (an invalid value would 400).
+    draft_reasoning_effort: str = os.environ.get("DRAFT_REASONING_EFFORT", "").lower()
     nim_api_key: str = os.environ.get("NIM_API_KEY", "")
     nim_base_url: str = os.environ.get("NIM_BASE_URL", "https://integrate.api.nvidia.com/v1")
     # fast model — scoring is a simple classification task; 8B keeps per-call latency low so a

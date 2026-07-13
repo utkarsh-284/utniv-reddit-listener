@@ -87,20 +87,51 @@ class LLMResult:
     provider: str | None = None
 
 
-def _providers() -> list[tuple[object, str, str]]:
-    """Ordered (client, model, name) list. max_retries=0 + a 30s timeout so a dead/over-quota
+def _providers(openai_model: str | None = None, timeout: float = 20.0
+               ) -> list[tuple[object, str, str]]:
+    """Ordered (client, model, name) list. max_retries=0 + a short timeout so a dead/over-quota
     provider fails INSTANTLY and we fall through — never a multi-minute retry storm (which was
-    blowing the CI timeout when OpenAI hit insufficient_quota). Order by LLM_PRIMARY."""
+    blowing the CI timeout when OpenAI hit insufficient_quota). Order by LLM_PRIMARY.
+
+    openai_model overrides the OpenAI model for THIS call set (scoring uses the cheap
+    gpt-4o-mini default; drafting passes settings.draft_model so voice work runs on a stronger
+    model). NIM keeps its own model as the fallback regardless."""
     from openai import OpenAI  # lazy import: keeps the deterministic core dependency-free
     openai_p = nim_p = None
     if settings.openai_api_key:
-        openai_p = (OpenAI(api_key=settings.openai_api_key, max_retries=0, timeout=20.0),
-                    settings.openai_model, "openai")
+        openai_p = (OpenAI(api_key=settings.openai_api_key, max_retries=0, timeout=timeout),
+                    openai_model or settings.openai_model, "openai")
     if settings.nim_api_key:
         nim_p = (OpenAI(api_key=settings.nim_api_key, base_url=settings.nim_base_url,
-                        max_retries=0, timeout=20.0), settings.nim_model, "nim")
+                        max_retries=0, timeout=timeout), settings.nim_model, "nim")
     order = [nim_p, openai_p] if settings.llm_primary == "nim" else [openai_p, nim_p]
     return [p for p in order if p]
+
+
+def _is_reasoning(model: str) -> bool:
+    """GPT-5.x and o-series are reasoning models: they REJECT `temperature` and `max_tokens`
+    and require `max_completion_tokens` (+ optional `reasoning_effort`). Passing the legacy
+    params 400s the call — which would silently fail over to NIM and tank draft quality."""
+    m = (model or "").lower()
+    return m.startswith(("gpt-5", "o1", "o3", "o4"))
+
+
+def _create(client, model: str, name: str, messages: list[dict], *,
+            max_tokens: int, temperature: float | None = None, json_mode: bool = False):
+    """One chat completion, mapping params to what the model actually accepts. Reasoning
+    models (gpt-5.x) get max_completion_tokens and no temperature; classic models keep both."""
+    kwargs: dict = {"model": model, "messages": messages}
+    if _is_reasoning(model):
+        kwargs["max_completion_tokens"] = max_tokens
+        if settings.draft_reasoning_effort:   # empty -> omit -> model default (fast)
+            kwargs["reasoning_effort"] = settings.draft_reasoning_effort
+    else:
+        kwargs["max_tokens"] = max_tokens
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+    if json_mode and name == "openai":  # OpenAI (4o + gpt-5.x) supports strict JSON mode
+        kwargs["response_format"] = {"type": "json_object"}
+    return client.chat.completions.create(**kwargs)
 
 
 def _parse(raw: str) -> dict:
@@ -116,16 +147,13 @@ def _parse(raw: str) -> dict:
 
 def llm_score(t: Thread) -> LLMResult:
     user = json.dumps({"subreddit": t.subreddit, "title": t.title, "body": t.body[:4000]})
+    # scoring stays on the cheap, proven-accurate gpt-4o-mini (settings.openai_model)
     for client, model, name in _providers():
         try:
-            kwargs = dict(
-                model=model, temperature=0.1, max_tokens=300,
-                messages=[{"role": "system", "content": _SYS},
-                          {"role": "user", "content": user}],
-            )
-            if name == "openai":  # gpt-4o-mini supports strict JSON mode
-                kwargs["response_format"] = {"type": "json_object"}
-            resp = client.chat.completions.create(**kwargs)
+            resp = _create(client, model, name,
+                           [{"role": "system", "content": _SYS},
+                            {"role": "user", "content": user}],
+                           max_tokens=300, temperature=0.1, json_mode=True)
             data = _parse(resp.choices[0].message.content or "")
             q = data.get("voc_quote")
             return LLMResult(
@@ -151,14 +179,14 @@ _PITCH_RE = re.compile(r"\b(utniv|scorecard|book a call|dm me|check out|reach ou
 
 
 def complete(system: str, user: str, max_tokens: int = 600, temperature: float = 0.6) -> str | None:
-    """Generic OpenAI->NIM completion (used by the weekly digest). Returns text or None."""
-    for client, model, name in _providers():
+    """Generic voice completion for the weekly digest (authority + BIP posts). Runs on the
+    stronger draft_model since this is voice work, not triage. Returns text or None."""
+    for client, model, name in _providers(openai_model=settings.draft_model, timeout=30.0):
         try:
-            resp = client.chat.completions.create(
-                model=model, temperature=temperature, max_tokens=max_tokens,
-                messages=[{"role": "system", "content": system},
-                          {"role": "user", "content": user}],
-            )
+            resp = _create(client, model, name,
+                           [{"role": "system", "content": system},
+                            {"role": "user", "content": user}],
+                           max_tokens=max_tokens, temperature=temperature)
             text = (resp.choices[0].message.content or "").strip()
             if text:
                 return text
@@ -199,16 +227,12 @@ def draft_reply(t: Thread, llm: LLMResult) -> dict | None:
     import zlib
     shape = SHAPES[zlib.crc32(t.reddit_id.encode()) % len(SHAPES)]
     user += "\n\nShape for THIS comment (mandatory): " + shape
-    for client, model, name in _providers():
+    for client, model, name in _providers(openai_model=settings.draft_model, timeout=30.0):
         try:
-            kwargs = dict(
-                model=model, temperature=0.8, max_tokens=550,
-                messages=[{"role": "system", "content": system_prompt()},
-                          {"role": "user", "content": user}],
-            )
-            if name == "openai":
-                kwargs["response_format"] = {"type": "json_object"}
-            resp = client.chat.completions.create(**kwargs)
+            resp = _create(client, model, name,
+                           [{"role": "system", "content": system_prompt()},
+                            {"role": "user", "content": user}],
+                           max_tokens=550, temperature=0.8, json_mode=True)
             raw = (resp.choices[0].message.content or "").strip()
             if not raw:
                 continue
@@ -243,16 +267,12 @@ def suggest_posts(items: list[dict], sub_names: list[str]) -> list[dict]:
         sys_prompt += ("\n\n# Write as this specific person (their voice, translated to Reddit)\n"
                        + PERSONAL_SAMPLES.strip())
     user = json.dumps({"monitored_subreddits": sub_names, "live_signals_this_run": signals})
-    for client, model, name in _providers():
+    for client, model, name in _providers(openai_model=settings.draft_model, timeout=30.0):
         try:
-            kwargs = dict(
-                model=model, temperature=0.7, max_tokens=700,
-                messages=[{"role": "system", "content": sys_prompt},
-                          {"role": "user", "content": user}],
-            )
-            if name == "openai":
-                kwargs["response_format"] = {"type": "json_object"}
-            resp = client.chat.completions.create(**kwargs)
+            resp = _create(client, model, name,
+                           [{"role": "system", "content": sys_prompt},
+                            {"role": "user", "content": user}],
+                           max_tokens=700, temperature=0.7, json_mode=True)
             data = _parse(resp.choices[0].message.content or "")
             out = []
             for idea in (data.get("ideas") or [])[:3]:

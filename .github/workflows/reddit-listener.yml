@@ -48,6 +48,7 @@ jobs:
 
           # --- scoring + alerting ---
           LLM_PRIMARY: openai          # OpenAI (gpt-4o-mini) scores accurately; NIM is fallback only
+          DRAFT_MODEL: gpt-5.4-mini    # voice/drafting model (replies, DMs, post ideas)
           NIM_BASE_URL: https://integrate.api.nvidia.com/v1
           NIM_MODEL: meta/llama-3.1-8b-instruct   # fallback model (fast)
           SCORE_DEADLINE_SECONDS: "480"  # hard cap on total scoring time (timeout safety net)
