@@ -46,12 +46,24 @@ def _card_block(item: dict) -> list[dict]:
         ]},
     ]
     draft = item.get("draft")
+    if isinstance(draft, str):        # realert path loads plain comment text from the DB
+        draft = {"comment": draft}
     if draft:
         # code block = clean copy-paste; it's a DRAFT to review + post by hand
         blocks.append({"type": "section", "text": {
             "type": "mrkdwn",
-            "text": f"✍️ *Draft reply* — review, edit, post by hand:\n```{draft[:2800]}```",
+            "text": f"✍️ *Draft reply* — review, edit, post by hand:\n```{draft['comment'][:2400]}```",
         }})
+        followups = draft.get("if_they_reply") or []
+        if followups:
+            digs = "\n".join(f"→ {q}" for q in followups)
+            blocks.append({"type": "context", "elements": [{"type": "mrkdwn",
+                "text": f"*If they reply, dig with:*\n{digs}"[:1200]}]})
+        if draft.get("dm_opener"):
+            blocks.append({"type": "section", "text": {
+                "type": "mrkdwn",
+                "text": f"📨 *DM opener* (after they engage):\n```{draft['dm_opener'][:1200]}```",
+            }})
     return blocks
 
 
@@ -82,6 +94,29 @@ def post_alerts(items: list[dict], scanned: int) -> bool:
         if _send({"blocks": blocks}):
             ok_any = True
     return ok_any
+
+
+def post_suggestions(ideas: list[dict]) -> bool:
+    """Mom-Test conversation starters for the monitored subs — posted after the alert cards.
+    ideas: [{subreddit, title, body, learns}]. Goal: as many validation conversations as
+    possible; Utkarsh reviews, edits, and posts by hand."""
+    if not ideas:
+        return False
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text",
+            "text": "🎣 Start a conversation — post ideas from this run"}},
+        {"type": "context", "elements": [{"type": "mrkdwn",
+            "text": "Grounded in what people posted today. Review, edit, post by hand — "
+                    "goal is Mom-Test conversations, not reach."}]},
+    ]
+    for idea in ideas:
+        blocks += [
+            {"type": "divider"},
+            {"type": "section", "text": {"type": "mrkdwn",
+                "text": f"*r/{idea['subreddit']}* — {idea.get('learns','')}\n"
+                        f"*{idea['title'][:150]}*\n```{idea['body'][:2400]}```"}},
+        ]
+    return _send({"blocks": blocks})
 
 
 def post_error(message: str) -> None:

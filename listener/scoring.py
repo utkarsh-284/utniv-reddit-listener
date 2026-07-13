@@ -168,40 +168,106 @@ def complete(system: str, user: str, max_tokens: int = 600, temperature: float =
     return None
 
 
-def draft_reply(t: Thread, llm: LLMResult) -> str | None:
-    """Draft a Reddit comment in Utkarsh's voice (Bearing-Quiet, first-person, no pitch).
+def _sanitize(text: str) -> str:
+    """Guardrails: no links / product mentions may ever ship in a draft."""
+    text = _URL_RE.sub("", text or "")
+    if _PITCH_RE.search(text):
+        # drop any line that references the product/CTA
+        text = "\n".join(ln for ln in text.splitlines() if not _PITCH_RE.search(ln))
+    return text.strip()
+
+
+def draft_reply(t: Thread, llm: LLMResult) -> dict | None:
+    """Draft Reddit engagement in Utkarsh's voice, Mom-Test grounded. Returns
+    {comment, if_they_reply: [..], dm_opener} — comment ready to paste, two deeper
+    follow-up digs for when the OP responds, and a DM opener for landing a conversation.
     Gated: returned for Slack review, never auto-posted. Strips any link/pitch that slips in."""
-    from config.reddit_voice import system_prompt, example_for
+    from config.reddit_voice import system_prompt, angle_for, SHAPES
     user = json.dumps({
         "subreddit": t.subreddit, "title": t.title, "body": t.body[:4000],
         "why_it_matters": llm.one_line_why, "trigger": llm.trigger_type,
     })
-    # a scenario exemplar matched to the trigger — shape to adapt, never to copy
-    example = example_for(llm.trigger_type)
-    if example:
-        user += ("\n\nAn example of the kind of reply that works for a situation like this. Match "
-                 "its shape, specificity, and usefulness — but write something fresh for THIS "
-                 "thread in your own words. Do NOT copy it:\n" + example)
+    angle = angle_for(llm.trigger_type)
+    if angle:
+        user += ("\n\nWhat's usually really going on in threads like this (context, don't "
+                 "recite it): " + angle["read"]
+                 + "\n\nMom-Test questions that fit this situation — pick at most ONE, and "
+                 "reshape it in this thread's own words. Never paste any of these verbatim:\n"
+                 + "\n".join(f"- {q}" for q in angle["asks"]))
+    # rotate the comment's shape by thread id (stable across runs, unlike hash()) so
+    # consecutive drafts never share an opener
+    import zlib
+    shape = SHAPES[zlib.crc32(t.reddit_id.encode()) % len(SHAPES)]
+    user += "\n\nShape for THIS comment (mandatory): " + shape
     for client, model, name in _providers():
         try:
-            resp = client.chat.completions.create(
-                model=model, temperature=0.6, max_tokens=320,
+            kwargs = dict(
+                model=model, temperature=0.8, max_tokens=550,
                 messages=[{"role": "system", "content": system_prompt()},
                           {"role": "user", "content": user}],
             )
-            text = (resp.choices[0].message.content or "").strip().strip('"').strip()
-            if not text:
+            if name == "openai":
+                kwargs["response_format"] = {"type": "json_object"}
+            resp = client.chat.completions.create(**kwargs)
+            raw = (resp.choices[0].message.content or "").strip()
+            if not raw:
                 continue
-            # guardrails: no links / product mentions may ever ship in a draft
-            text = _URL_RE.sub("", text)
-            if _PITCH_RE.search(text):
-                # drop any line that references the product/CTA
-                text = "\n".join(ln for ln in text.splitlines() if not _PITCH_RE.search(ln)).strip()
-            return text or None
+            try:
+                data = _parse(raw)
+            except Exception:
+                # model ignored the JSON contract — salvage the text as the comment
+                data = {"comment": raw.strip().strip('"')}
+            comment = _sanitize(str(data.get("comment") or ""))
+            if not comment:
+                continue
+            followups = [_sanitize(str(q)) for q in (data.get("if_they_reply") or [])
+                         if str(q).strip()][:2]
+            dm = data.get("dm_opener")
+            dm = _sanitize(str(dm)) if isinstance(dm, str) and dm.strip() else None
+            return {"comment": comment, "if_they_reply": followups, "dm_opener": dm}
         except Exception as e:
             print(f"[draft] {name} failed: {e}")
             continue
     return None
+
+
+def suggest_posts(items: list[dict], sub_names: list[str]) -> list[dict]:
+    """One LLM call per alerting run: 2 Mom-Test discussion-post ideas for the monitored
+    subs, grounded in what people were actually posting about this run. Returns
+    [{subreddit, title, body, learns}]. Fail-open: any error -> []."""
+    from config.reddit_voice import SUGGEST_POSTS_SYS, PERSONAL_SAMPLES
+    signals = [{"subreddit": it["subreddit"], "title": it["title"],
+                "trigger": it.get("trigger"), "why": it.get("why")} for it in items[:8]]
+    sys_prompt = SUGGEST_POSTS_SYS
+    if PERSONAL_SAMPLES.strip():
+        sys_prompt += ("\n\n# Write as this specific person (their voice, translated to Reddit)\n"
+                       + PERSONAL_SAMPLES.strip())
+    user = json.dumps({"monitored_subreddits": sub_names, "live_signals_this_run": signals})
+    for client, model, name in _providers():
+        try:
+            kwargs = dict(
+                model=model, temperature=0.7, max_tokens=700,
+                messages=[{"role": "system", "content": sys_prompt},
+                          {"role": "user", "content": user}],
+            )
+            if name == "openai":
+                kwargs["response_format"] = {"type": "json_object"}
+            resp = client.chat.completions.create(**kwargs)
+            data = _parse(resp.choices[0].message.content or "")
+            out = []
+            for idea in (data.get("ideas") or [])[:3]:
+                title = _sanitize(str(idea.get("title") or ""))
+                body = _sanitize(str(idea.get("body") or ""))
+                sub = str(idea.get("subreddit") or "").lstrip("r/").strip()
+                if title and body and sub:
+                    out.append({"subreddit": sub, "title": title, "body": body,
+                                "learns": str(idea.get("learns") or "")[:120]})
+            if out:
+                return out
+        except Exception as e:
+            print(f"[suggest] {name} failed: {e}")
+            continue
+    return []
 
 
 def composite(det: dict, llm: LLMResult) -> int:

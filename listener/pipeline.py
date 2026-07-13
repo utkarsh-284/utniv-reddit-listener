@@ -165,7 +165,7 @@ def run(dry: bool = False) -> dict:
                 if llm.suggested_action == "reply":
                     draft = scoring.draft_reply(t, llm)
                     if draft and thread_uuid:
-                        store.save_draft(sb, thread_uuid, draft)
+                        store.save_draft(sb, thread_uuid, draft["comment"])
                         stats["drafts_made"] = stats.get("drafts_made", 0) + 1
                 alert_uuids.append(thread_uuid)
                 alert_items.append({
@@ -185,6 +185,14 @@ def run(dry: bool = False) -> dict:
             if slack.post_alerts(alert_items, scanned=stats["posts_new"]):
                 stats["alerts_sent"] = len(alert_items)
                 store.mark_alerted(sb, [u for u in alert_uuids if u])
+            # Mom-Test conversation starters: only on runs that alerted (keeps noise + cost
+            # down; quiet runs stay silent). Fail-open — a suggestion hiccup never fails the run.
+            try:
+                ideas = scoring.suggest_posts(alert_items, names)
+                if ideas and slack.post_suggestions(ideas):
+                    stats["posts_suggested"] = len(ideas)
+            except Exception as e:
+                print(f"[pipeline] post suggestions skipped: {e}")
 
     except Exception as e:
         stats["ok"] = False

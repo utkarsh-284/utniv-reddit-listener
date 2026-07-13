@@ -113,8 +113,24 @@ Check the Slack card and the `reddit_threads` / `reddit_runs` rows in Supabase. 
   (default 65) → Slack. High-pain posts get a 🔥 flag even slightly under.
 - Everything is stored regardless of threshold, so you can re-tune later against real data.
 
+## Drafting (Mom Test engine)
+Every reply-worthy thread gets a drafted engagement kit in the Slack card, built on
+The Mom Test (talk about their life, specifics in the past, never pitch):
+- **Draft comment** — varied shape per thread (opener rotation is keyed to the thread id,
+  so drafts never share the same skeleton), grounded in the post's own words, ending in one
+  genuine past-specific question. No links, no product mentions — enforced by regex too.
+- **"If they reply, dig with"** — two deeper Mom-Test follow-ups (cost, last concrete time,
+  what they tried) ready to paste when the OP responds.
+- **DM opener** — an honest, no-pitch DM for after they engage, to land a real conversation.
+
+On every run that alerts, a second Slack message posts **🎣 conversation starters** — 2
+discussion-post ideas for the monitored subs, grounded in that run's live signals, each a
+pure Mom-Test question post (what it validates is labeled). Goal: as many validation
+conversations as possible. Voice/rules live in `config/reddit_voice.py`; paste raw samples
+of your own writing into `PERSONAL_SAMPLES` there to sharpen the voice further.
+
 ## Guardrails (UTNIV house rules)
-- **Read-only.** No posting scope. (v1.1 will draft replies, but you post by hand.)
+- **Read-only.** No posting scope. Drafts land in Slack; you review, edit, and post by hand.
 - **Fail-open.** If both LLM providers fail, the thread is stored with a deterministic-only
   score; the run never crashes and no data is lost.
 - **Idempotent.** `reddit_id` unique constraint; re-polls refresh counts, never duplicate.
