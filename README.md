@@ -133,11 +133,13 @@ The Mom Test (talk about their life, specifics in the past, never pitch):
   what they tried) ready to paste when the OP responds.
 - **DM opener** — an honest, no-pitch DM for after they engage, to land a real conversation.
 
-On every run that alerts, a second Slack message posts **🎣 conversation starters** — 2
-discussion-post ideas for the monitored subs, grounded in that run's live signals, each a
-pure Mom-Test question post (what it validates is labeled). Goal: as many validation
-conversations as possible. Voice/rules live in `config/reddit_voice.py`; paste raw samples
-of your own writing into `PERSONAL_SAMPLES` there to sharpen the voice further.
+Voice/rules live in `config/reddit_voice.py`; paste raw samples of your own writing into
+`PERSONAL_SAMPLES` there to sharpen the voice further.
+
+> **Paused:** the per-run "🎣 start a conversation" post suggestions are switched off — the
+> ideas came out too generic/irrelevant. Each run now posts only the ICP alert cards. The
+> code (`scoring.suggest_posts`, `slack.post_suggestions`) is left dormant for a future fix.
+> The **weekly digest still drafts** authority + build-in-public posts (see below).
 
 ## Guardrails (UTNIV house rules)
 - **Read-only.** No posting scope. Drafts land in Slack; you review, edit, and post by hand.

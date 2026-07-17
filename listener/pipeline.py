@@ -185,14 +185,11 @@ def run(dry: bool = False) -> dict:
             if slack.post_alerts(alert_items, scanned=stats["posts_new"]):
                 stats["alerts_sent"] = len(alert_items)
                 store.mark_alerted(sb, [u for u in alert_uuids if u])
-            # Mom-Test conversation starters: only on runs that alerted (keeps noise + cost
-            # down; quiet runs stay silent). Fail-open — a suggestion hiccup never fails the run.
-            try:
-                ideas = scoring.suggest_posts(alert_items, names)
-                if ideas and slack.post_suggestions(ideas):
-                    stats["posts_suggested"] = len(ideas)
-            except Exception as e:
-                print(f"[pipeline] post suggestions skipped: {e}")
+            # NOTE: per-run "start a conversation" post suggestions are PAUSED — the ideas
+            # were coming out irrelevant/generic. Each run now posts ONLY the ICP alert cards
+            # (with their drafted reply + follow-up digs + DM opener). The weekly digest keeps
+            # its authority/BIP post drafts. scoring.suggest_posts / slack.post_suggestions
+            # remain in the code, dormant, if we want to revive + fix this later.
 
     except Exception as e:
         stats["ok"] = False
